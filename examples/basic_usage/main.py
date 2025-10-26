@@ -22,18 +22,22 @@ Author: n-elia
 """
 
 # Some ports need to import 'sleep' from 'time' module
-from machine import sleep, SoftI2C, Pin
-from utime import ticks_diff, ticks_us
+import time
+import board
+import busio
 
-from max30102 import MAX30102, MAX30105_PULSE_AMP_MEDIUM
+from lib.max30102 import MAX30102, MAX30105_PULSE_AMP_MEDIUM
 
 
 def main():
     # I2C software instance
-    i2c = SoftI2C(sda=Pin(22),  # Here, use your I2C SDA pin
-                  scl=Pin(21),  # Here, use your I2C SCL pin
-                  freq=400000)  # Fast: 400kHz, slow: 100kHz
+   # i2c = SoftI2C(sda=Pin(22),  # Here, use your I2C SDA pin
+  #                scl=Pin(21),  # Here, use your I2C SCL pin
+  #                freq=400000)  # Fast: 400kHz, slow: 100kHz
+    i2c =busio.I2C(scl=board.D5, sda=board.D4) # Fast: 400kHz, slow: 100kHz for XIAO nrf52840
 
+    while not i2c.try_lock():
+        pass
     # Examples of working I2C configurations:
     # Board             |   SDA pin  |   SCL pin
     # ------------------------------------------
@@ -75,7 +79,7 @@ def main():
     # Set LED brightness to a medium value
     sensor.set_active_leds_amplitude(MAX30105_PULSE_AMP_MEDIUM)
 
-    sleep(1)
+    time.sleep(1)
 
     # The readTemperature() method allows to extract the die temperature in °C    
     print("Reading temperature in °C.", '\n')
@@ -85,9 +89,9 @@ def main():
     compute_frequency = True
 
     print("Starting data acquisition from RED & IR registers...", '\n')
-    sleep(1)
+    time.sleep(1)
 
-    t_start = ticks_us()  # Starting time of the acquisition
+    t_start = round(time.monotonic_ns()/1000) # Starting time of the acquisition in microsecond  # Starting time of the acquisition
     samples_n = 0  # Number of samples that have been collected
 
     while True:
@@ -107,11 +111,11 @@ def main():
 
             # Compute the real frequency at which we receive data
             if compute_frequency:
-                if ticks_diff(ticks_us(), t_start) >= 999999:
+                if round(time.monotonic_ns()/1000)-t_start >= 999999:
                     f_HZ = samples_n
                     samples_n = 0
                     print("acquisition frequency = ", f_HZ)
-                    t_start = ticks_us()
+                    t_start = round(time.monotonic_ns()/1000) # Starting time of the acquisition in microsecond
                 else:
                     samples_n = samples_n + 1
 
