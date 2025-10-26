@@ -1,10 +1,14 @@
 # main.py
 # Some ports need to import 'sleep' from 'time' module
-from machine import sleep, SoftI2C, Pin
-from utime import ticks_diff, ticks_us, ticks_ms
+#rom machine import sleep, SoftI2C, Pin
+#from utime import ticks_diff, ticks_us, ticks_ms
 
-from max30102 import MAX30102, MAX30105_PULSE_AMP_MEDIUM
+#from max30102 import MAX30102, MAX30105_PULSE_AMP_MEDIUM
+import time
+import board
+import busio
 
+from lib.max30102 import MAX30102, MAX30105_PULSE_AMP_MEDIUM
 
 class HeartRateMonitor:
     """A simple heart rate monitor that uses a moving window to smooth the signal and find peaks."""
@@ -89,12 +93,12 @@ class HeartRateMonitor:
 
 def main():
     # I2C software instance
-    i2c = SoftI2C(
-        sda=Pin(8),  # Here, use your I2C SDA pin
-        scl=Pin(9),  # Here, use your I2C SCL pin
-        freq=400000,
-    )  # Fast: 400kHz, slow: 100kHz
-
+   # i2c = SoftI2C(
+   #     sda=Pin(8),  # Here, use your I2C SDA pin
+   #     scl=Pin(9),  # Here, use your I2C SCL pin
+   #     freq=400000,
+   # )  # Fast: 400kHz, slow: 100kHz
+    i2c=busio.I2C(scl=board.GP5, sda=board.GP4) # Fast: 400kHz, slow: 100kHz for XIAO nrf52840
     # Examples of working I2C configurations:
     # Board             |   SDA pin  |   SCL pin
     # ------------------------------------------
@@ -102,10 +106,11 @@ def main():
     # TinyPico ESP32    |   21       |   22
     # Raspberry Pi Pico |   16       |   17
     # TinyS3			|	 8		 |    9
-
+    while not i2c.try_lock():
+        pass
     # Sensor instance
     sensor = MAX30102(i2c=i2c)  # An I2C instance is required
-
+    
     # Scan I2C bus to ensure that the sensor is connected
     if sensor.i2c_address not in i2c.scan():
         print("Sensor not found.")
@@ -135,7 +140,7 @@ def main():
     # Expected acquisition rate: 400 Hz / 8 = 50 Hz
     actual_acquisition_rate = int(sensor_sample_rate / sensor_fifo_average)
 
-    sleep(1)
+    time.sleep(1)
 
     print(
         "Starting data acquisition from RED & IR registers...",
@@ -152,9 +157,9 @@ def main():
         window_size=int(actual_acquisition_rate * 3),
     )
 
-    # Setup to calculate the heart rate every 2 seconds
-    hr_compute_interval = 2  # seconds
-    ref_time = ticks_ms()  # Reference time
+    # Setup to calculate the heart rate every 1 seconds
+    hr_compute_interval = 999999  # useconds
+    ref_time = round(time.monotonic_ns()/1000) # Reference time
 
     while True:
         # The check() method has to be continuously polled, to check if
@@ -174,7 +179,7 @@ def main():
             hr_monitor.add_sample(ir_reading)
 
         # Periodically calculate the heart rate every `hr_compute_interval` seconds
-        if ticks_diff(ticks_ms(), ref_time) / 1000 > hr_compute_interval:
+        if round(time.monotonic_ns()/1000)-t_start > hr_compute_interval:
             # Calculate the heart rate
             heart_rate = hr_monitor.calculate_heart_rate()
             if heart_rate is not None:
@@ -182,7 +187,7 @@ def main():
             else:
                 print("Not enough data to calculate heart rate")
             # Reset the reference time
-            ref_time = ticks_ms()
+            ref_time = round(time.monotonic_ns()/1000)
 
 
 if __name__ == "__main__":
